@@ -1,4 +1,5 @@
-*.md
+# Ignore lab report markdown files (not README)
+DC_Lab_Report*.md
 *.pdf
 Requirements.jpeg
 Requirements.png
