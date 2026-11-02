@@ -16,6 +16,7 @@
 - [Task 2 — Binary PAM System Simulation](#-task-2--binary-pam-system-simulation)
 - [Task 3 — Eye Diagram Parameter Extraction](#-task-3--eye-diagram-parameter-extraction)
 - [Task 4 — RC Pulse Analysis for Varying α](#-task-4--rc-pulse-analysis-for-varying-α)
+- [**Task 5 — ISI Analysis & Linear Equalizer Comparison**](#-task-5--isi-analysis--linear-equalizer-comparison)
 - [DiscretePAM — 4-PAM Extension](#-discretepam--4-pam-extension)
 - [Results & Output Plots](#-results--output-plots)
 - [Dependencies & Setup](#-dependencies--setup)
@@ -44,6 +45,7 @@ Digital_Communication_Signal_Modelling/
 │
 ├── Task1_Task2_BinaryPAM.py            # Tasks 1 & 2 — RC pulse + Binary PAM simulation
 ├── Task3_Task4.py                      # Tasks 3 & 4 — Eye diagram params + alpha analysis
+├── Task5_ISI_Equalization.py           # Task 5 — ISI channel + ZF & MMSE equalizers  ★ NEW
 ├── DiscretePAM.py                      # 4-PAM extension with ML decoding
 ├── generate_pdf.py                     # Script to compile lab report as PDF
 │
@@ -61,6 +63,11 @@ Digital_Communication_Signal_Modelling/
 ├── Task4_BW_vs_Alpha.png               # Output: Bandwidth vs. α curve
 ├── Task4_BER_vs_Alpha.png              # Output: BER vs. α curve
 ├── Task4_EyeDiagrams_Alpha.png         # Output: Eye diagrams for α = 0, 0.75, 1.0
+│
+├── Task5_BER_vs_SNR_Equalizers.png     # Output: BER vs SNR — all receivers  ★ NEW
+├── Task5_EyeDiagrams_Equalization.png  # Output: 2×2 eye diagram (ISI & equalized)  ★ NEW
+├── Task5_FreqResponse_Equalizers.png   # Output: Channel & equalizer freq response  ★ NEW
+├── Task5_MMSE_vs_ZF_Gain.png           # Output: MMSE vs ZF BER gain per SNR  ★ NEW
 │
 ├── Alpha_RC_Pulse_Comparison.png       # Output: RC pulse comparison (supplementary)
 ├── Alpha_BW_vs_Alpha.png               # Output: BW vs α (supplementary)
@@ -270,6 +277,87 @@ Analyse how the **roll-off factor α** affects the RC pulse shape, occupied band
 
 ---
 
+## ✅ Task 5 — ISI Analysis & Linear Equalizer Comparison
+
+**Script:** `Task5_ISI_Equalization.py`
+
+### Motivation
+Tasks 1–4 assume an **ideal AWGN channel** where pulse shaping guarantees zero ISI at sampling instants. Real communication channels (wireless, wireline, optical fibre) are **dispersive** — they spread signals in time, causing energy from one symbol to bleed into adjacent symbols (**Inter-Symbol Interference, ISI**). Task 5 models this degradation and shows how **linear equalizers** recover performance.
+
+### Channel Model — Two-Path Multipath
+
+```
+TX ──► [RC Pulse Shape] ──► [Two-Path Channel h] ──► [AWGN] ──► [Equalizer] ──► [MF] ──► Decision
+
+h(t) = 1.0·δ(t) + 0.5·δ(t − T_s)
+```
+
+| Parameter | Value |
+|-----------|-------|
+| Direct path gain h₀ | 1.0 |
+| Reflected path gain h₁ | 0.5 (50% of direct) |
+| Multipath delay | 1 symbol period T_s |
+| ISI span | Worst-case: adjacent symbol contamination |
+
+### Equalizer Designs
+
+| Equalizer | Frequency-Domain Transfer Function | Trade-off |
+|-----------|------------------------------------|----------|
+| **None** | — | ISI floor, no noise enhancement |
+| **Zero-Forcing (ZF)** | `W(f) = H*(f) / |H(f)|²` | Perfect ISI removal; noise amplified at spectral nulls |
+| **MMSE** | `W(f) = H*(f) / (|H(f)|² + σ²_n/σ²_x)` | Optimal MSE; balances ISI vs noise |
+
+### BER vs SNR Results
+
+| SNR (dB) | AWGN only (no ISI) | ISI — No EQ | ISI — ZF | ISI — MMSE | Theory |
+|----------|-------------------|-------------|----------|------------|--------|
+| −2 | 0.010300 | 0.078600 | 0.024800 | 0.045600 | 0.130644 |
+| 0 | 0.002300 | 0.053900 | 0.009200 | 0.024600 | 0.078650 |
+| 4 | 0.000000 | 0.013000 | 0.000500 | 0.003200 | 0.012501 |
+| 8 | 0.000000 | 0.001200 | 0.000000 | 0.000100 | 0.000191 |
+| 10 | 0.000000 | 0.000300 | 0.000000 | 0.000000 | 0.000004 |
+
+### SNR Required to Achieve BER ≤ 10⁻³
+
+| Receiver | SNR Needed |
+|----------|------------|
+| Theoretical (no ISI) | 8 dB |
+| Simulated (no ISI) | 2 dB |
+| ISI — No Equalizer | **10 dB** (ISI floor) |
+| ISI — ZF Equalizer | **4 dB** |
+| ISI — MMSE Equalizer | **6 dB** |
+
+> ✅ ZF achieves **BER ≤ 10⁻³** 6 dB sooner than the un-equalized ISI system.
+
+### Eye Diagram Parameters @ SNR = 5 dB
+
+| Receiver | Eye Height | Noise Margin | BER |
+|----------|------------|--------------|-----|
+| AWGN only (no ISI) | 0.0048 | 0.0024 | 0.000000 |
+| ISI — No Equalizer | 0.0252 | 0.0126 | 0.008500 |
+| ISI — ZF Equalizer | 0.0267 | 0.0134 | 0.000100 |
+| ISI — MMSE Equalizer | 0.0108 | 0.0054 | 0.001700 |
+
+### Key Inferences
+
+1. **ISI creates a BER floor** — matched filtering alone is insufficient when the physical channel is dispersive
+2. **ZF is optimal at high SNR** — perfectly inverts the channel but amplifies noise at spectral nulls
+3. **MMSE is optimal at low-to-moderate SNR** — regularises the inversion to limit noise enhancement
+4. **Eye diagrams reveal the effect clearly** — ISI collapses the eye; equalization reopens it
+5. **Frequency-domain design** — the key insight is that the equalizer must invert the channel, not just the pulse
+6. **SNR penalty of ISI** — without equalization, you need ~8 dB more SNR to reach BER = 10⁻³
+
+### Outputs
+
+| File | Description |
+|------|-------------|
+| `Task5_BER_vs_SNR_Equalizers.png` | BER vs SNR for all 4 receivers on one semi-log plot |
+| `Task5_EyeDiagrams_Equalization.png` | 2×2 eye diagrams: reference, ISI, ZF, MMSE |
+| `Task5_FreqResponse_Equalizers.png` | Channel, ZF, and MMSE magnitude frequency responses |
+| `Task5_MMSE_vs_ZF_Gain.png` | Bar chart of MMSE advantage over ZF at each SNR |
+
+---
+
 ## 🔌 DiscretePAM — 4-PAM Extension
 
 **Script:** `DiscretePAM.py`
@@ -311,9 +399,13 @@ An extension exploring **4-PAM (M = 4)** signalling with Maximum Likelihood deco
 | 9 | `Task4_BW_vs_Alpha.png` | 4 | BW vs α with key points annotated |
 | 10 | `Task4_BER_vs_Alpha.png` | 4 | BER vs α sweep at SNR = 5 dB |
 | 11 | `Task4_EyeDiagrams_Alpha.png` | 4 | Eye diagrams side-by-side for 3 α values |
-| 12 | `Alpha_RC_Pulse_Comparison.png` | Extra | RC pulse overlay (supplementary analysis) |
-| 13 | `Alpha_BW_vs_Alpha.png` | Extra | Annotated BW vs α |
-| 14 | `Alpha_BER_vs_Alpha.png` | Extra | BER vs α sweep (20 points) |
+| 12 | `Task5_BER_vs_SNR_Equalizers.png` | **5** ★ | BER vs SNR — reference, ISI, ZF, MMSE |
+| 13 | `Task5_EyeDiagrams_Equalization.png` | **5** ★ | 2×2 eye diagrams before and after equalization |
+| 14 | `Task5_FreqResponse_Equalizers.png` | **5** ★ | Channel & equalizer magnitude frequency responses |
+| 15 | `Task5_MMSE_vs_ZF_Gain.png` | **5** ★ | Bar chart: MMSE gain over ZF at each SNR point |
+| 16 | `Alpha_RC_Pulse_Comparison.png` | Extra | RC pulse overlay (supplementary analysis) |
+| 17 | `Alpha_BW_vs_Alpha.png` | Extra | Annotated BW vs α |
+| 18 | `Alpha_BER_vs_Alpha.png` | Extra | BER vs α sweep (20 points) |
 
 ---
 
@@ -340,7 +432,7 @@ pip install numpy matplotlib scipy
 ### Task 1 & Task 2
 
 ```bash
-python Task1_Task2_BinaryPAM.py
+python3 Task1_Task2_BinaryPAM.py
 ```
 
 **Generates:** `Task1_RC_Pulse.png`, `Task2_TX_RX_Signals.png`, `Task2_EyeDiagram_5dB.png`, `Task2_EyeDiagrams_Comparison.png`, `Task2_BER_vs_SNR.png`, `Alpha_*.png`
@@ -348,15 +440,25 @@ python Task1_Task2_BinaryPAM.py
 ### Task 3 & Task 4
 
 ```bash
-python Task3_Task4.py
+python3 Task3_Task4.py
 ```
 
 **Generates:** `Task3_EyeDiagram_5dB_Annotated.png`, `Task3_EyeDiagrams_Comparison.png`, `Task4_RC_Pulse_Comparison.png`, `Task4_BW_vs_Alpha.png`, `Task4_BER_vs_Alpha.png`, `Task4_EyeDiagrams_Alpha.png`
 
+### Task 5 — ISI & Equalization ★ NEW
+
+```bash
+python3 Task5_ISI_Equalization.py
+```
+
+**Generates:** `Task5_BER_vs_SNR_Equalizers.png`, `Task5_EyeDiagrams_Equalization.png`, `Task5_FreqResponse_Equalizers.png`, `Task5_MMSE_vs_ZF_Gain.png`
+
+**Runtime:** ~5 seconds (10,000 bits × 10 SNR points × 3 receiver configurations)
+
 ### 4-PAM Extension
 
 ```bash
-python DiscretePAM.py
+python3 DiscretePAM.py
 ```
 
 **Displays:** RC pulse, 4-PAM TX/RX signals, and 4-PAM eye diagram (interactive window)
@@ -373,7 +475,29 @@ python DiscretePAM.py
 | BW is linear in α | `BW = (1+α)/(2T_b)` — each 0.1 increase in α adds `0.05/T_b` |
 | BER independent of α | In ideal AWGN, BER set by SNR, not α |
 | α = 0.32 is a good design | 32% excess BW, good timing jitter immunity |
+| ISI creates irreducible BER floor | Two-path channel prevents BER improvement beyond 10 dB without equalization |
+| ZF removes ISI at high SNR cost | ZF needs only 4 dB SNR for BER ≤ 10⁻³; 6 dB better than no equalizer |
+| MMSE is low-SNR optimal | MMSE regularises the channel inversion, winning at SNR < 8 dB over ZF |
+| Pulse shaping ≠ equalization | RC pulse handles pulse ISI; a separate equalizer is needed for channel ISI |
 
 ---
 
-*Reference: Haykin, S., "Digital Communication Systems", John Wiley & Sons, 2014, Chapter 8 §8.6, pp. 456–458*
+## 🔗 Progressive Learning Path
+
+```
+Task 1 → RC Pulse Design (FIR model)
+   ↓
+Task 2 → Binary PAM + AWGN + Matched Filter + BER measurement
+   ↓
+Task 3 → Eye Diagram — quantify eye opening, noise margin, jitter tolerance
+   ↓
+Task 4 → Roll-off α trade-off: BW vs timing robustness
+   ↓
+Task 5 → Dispersive channel ISI + ZF/MMSE Equalization  ← YOU ARE HERE
+   ↓
+(Next) → Decision Feedback Equalizer (DFE) / Turbo Equalization / M-PAM
+```
+
+---
+
+*Reference: Haykin, S., "Digital Communication Systems", John Wiley & Sons, 2014, Chapter 8 §8.6 & Chapter 9, pp. 456–458*
